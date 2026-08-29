@@ -1,0 +1,21 @@
+{
+  "name": "playgrid",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@9.12.3",
+  "scripts": {
+    "dev": "pnpm --parallel --filter @playgrid/api --filter @playgrid/web dev",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "test": "pnpm --filter @playgrid/api test",
+    "test:integration": "pnpm --filter @playgrid/api test:integration",
+    "test:e2e": "pnpm --filter @playgrid/web test:e2e",
+    "test:race": "pnpm --filter @playgrid/api test:race",
+    "db:migrate": "pnpm --filter @playgrid/api prisma:migrate",
+    "db:seed": "pnpm --filter @playgrid/api prisma:seed"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.46.1",
+    "typescript": "^5.6.3"
+  }
+}

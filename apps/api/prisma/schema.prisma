@@ -1,0 +1,220 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  STUDENT
+  FACILITY_MANAGER
+  ADMIN
+}
+
+enum FacilityStatus {
+  OPEN
+  CLOSED
+  MAINTENANCE
+}
+
+enum SlotStatus {
+  AVAILABLE
+  MAINTENANCE
+  CLOSED
+}
+
+enum BookingStatus {
+  CONFIRMED
+  CANCELLED
+  CHECKED_IN
+  NO_SHOW
+}
+
+enum WaitlistStatus {
+  WAITING
+  PROMOTED
+  EXPIRED
+  CANCELLED
+}
+
+enum NotificationType {
+  BOOKING_CONFIRMED
+  BOOKING_CANCELLED
+  WAITLIST_JOINED
+  WAITLIST_PROMOTED
+  BOOKING_REMINDER
+  FACILITY_CLOSED
+}
+
+enum IdempotencyStatus {
+  IN_PROGRESS
+  COMPLETED
+}
+
+model User {
+  id           String          @id @default(cuid())
+  email        String          @unique
+  name         String
+  passwordHash String
+  role         UserRole        @default(STUDENT)
+  priority     Int             @default(0)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  bookings     Booking[]
+  waitlists    WaitlistEntry[]
+  notifications Notification[]
+  checkIns     CheckIn[]
+
+  @@index([role])
+}
+
+model Facility {
+  id          String              @id @default(cuid())
+  name        String
+  sport       String
+  location    String
+  description String
+  imageUrl    String
+  status      FacilityStatus      @default(OPEN)
+  indoor      Boolean             @default(false)
+  capacity    Int?
+  amenities   String[]
+  openHour    Int                 @default(6)
+  closeHour   Int                 @default(22)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  slots       FacilitySlot[]
+  policies    FacilityPolicy[]
+  maintenance MaintenanceWindow[]
+
+  @@index([sport])
+  @@index([status])
+}
+
+model FacilitySlot {
+  id          String           @id @default(cuid())
+  facilityId  String
+  startsAt    DateTime
+  endsAt      DateTime
+  status      SlotStatus       @default(AVAILABLE)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  facility    Facility         @relation(fields: [facilityId], references: [id], onDelete: Cascade)
+  bookings    Booking[]        @relation("SlotBookings")
+  activeBooking Booking?       @relation("ActiveSlotBooking")
+  waitlists   WaitlistEntry[]
+
+  @@unique([facilityId, startsAt])
+  @@index([facilityId, startsAt])
+  @@index([startsAt, status])
+}
+
+model Booking {
+  id           String         @id @default(cuid())
+  userId       String
+  slotId       String
+  activeSlotId String?        @unique
+  status       BookingStatus  @default(CONFIRMED)
+  qrCode       String
+  cancelledAt  DateTime?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  slot         FacilitySlot   @relation("SlotBookings", fields: [slotId], references: [id], onDelete: Cascade)
+  activeSlot   FacilitySlot?  @relation("ActiveSlotBooking", fields: [activeSlotId], references: [id])
+  checkIn      CheckIn?
+
+  @@index([userId, status])
+  @@index([slotId, status])
+  @@index([createdAt])
+}
+
+model WaitlistEntry {
+  id         String         @id @default(cuid())
+  userId     String
+  slotId     String
+  status     WaitlistStatus @default(WAITING)
+  position   Int
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  slot       FacilitySlot   @relation(fields: [slotId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, slotId])
+  @@index([slotId, status, createdAt])
+  @@index([userId, status])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  body      String
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+  @@index([createdAt])
+}
+
+model FacilityPolicy {
+  id                    String   @id @default(cuid())
+  facilityId             String?
+  sport                  String?
+  maxActiveBookings      Int      @default(2)
+  maxSportBookingsPerWeek Int     @default(3)
+  advanceWindowDays      Int      @default(7)
+  cancellationCutoffMinutes Int   @default(60)
+  priorityEnabled        Boolean  @default(false)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+  facility               Facility? @relation(fields: [facilityId], references: [id], onDelete: Cascade)
+
+  @@index([facilityId])
+  @@index([sport])
+}
+
+model MaintenanceWindow {
+  id         String   @id @default(cuid())
+  facilityId String
+  startsAt   DateTime
+  endsAt     DateTime
+  reason     String
+  createdAt  DateTime @default(now())
+  facility   Facility @relation(fields: [facilityId], references: [id], onDelete: Cascade)
+
+  @@index([facilityId, startsAt])
+}
+
+model IdempotencyRecord {
+  id             String            @id @default(cuid())
+  key            String
+  userId         String
+  requestHash    String
+  status         IdempotencyStatus @default(IN_PROGRESS)
+  responseCode   Int?
+  responseBody   Json?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@unique([key, userId])
+  @@index([createdAt])
+}
+
+model CheckIn {
+  id        String   @id @default(cuid())
+  bookingId String   @unique
+  userId    String
+  checkedInAt DateTime?
+  noShowAt  DateTime?
+  createdAt DateTime @default(now())
+  booking   Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, checkedInAt])
+  @@index([noShowAt])
+}

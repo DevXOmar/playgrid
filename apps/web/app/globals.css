@@ -1,0 +1,41 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  min-height: 100vh;
+  background:
+    linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px),
+    radial-gradient(circle at 20% -10%, rgba(124,92,255,0.18), transparent 28rem),
+    radial-gradient(circle at 80% 0%, rgba(255,122,33,0.10), transparent 24rem),
+    #08070D;
+  background-size: 36px 36px, 36px 36px, auto, auto, auto;
+  color: #F7F7FA;
+}
+
+button, a, input, select {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.glass {
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(17,16,26,0.76);
+  backdrop-filter: blur(18px);
+}
+
+.slot {
+  min-height: 72px;
+}
