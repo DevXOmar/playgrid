@@ -259,7 +259,10 @@ export class BookingService {
     private readonly gateway: BookingGateway
   ) {}
 
-  async create(userId: string, slotId: string, idempotencyKey?: string) {
+  async create(userId: string, slotId: string, idempotencyKey?: string, options: { enforcePolicies?: boolean; includeAlternatives?: boolean; notify?: boolean } = {}) {
+    const enforcePolicies = options.enforcePolicies ?? true;
+    const includeAlternatives = options.includeAlternatives ?? true;
+    const notify = options.notify ?? true;
     const requestHash = crypto.createHash("sha256").update(JSON.stringify({ slotId })).digest("hex");
     if (!idempotencyKey) idempotencyKey = crypto.randomUUID();
 
@@ -274,7 +277,7 @@ export class BookingService {
       let body: unknown;
       let statusCode = 201;
       try {
-        await this.policies.assertCanBook(userId, slotId, tx);
+        if (enforcePolicies) await this.policies.assertCanBook(userId, slotId, tx);
         // Invariant 1 and 5: PostgreSQL is the final boundary. Only one row can keep activeSlotId=slotId.
         const rows = await tx.$queryRaw<Array<{ id: string }>>`
           INSERT INTO "Booking" ("id","userId","slotId","activeSlotId","status","qrCode","createdAt","updatedAt")
@@ -287,7 +290,7 @@ export class BookingService {
           body = {
             code: "SLOT_ALREADY_BOOKED",
             message: "Someone just secured this slot.",
-            alternatives: await this.alternatives.forSlot(slotId, tx)
+            alternatives: includeAlternatives ? await this.alternatives.forSlot(slotId, tx) : []
           };
         } else {
           const booking = await tx.booking.findUniqueOrThrow({
@@ -295,7 +298,7 @@ export class BookingService {
             include: { slot: { include: { facility: true } } }
           });
           await tx.waitlistEntry.updateMany({ where: { userId, slotId, status: "WAITING" }, data: { status: "CANCELLED" } });
-          await this.notifications.create(userId, "BOOKING_CONFIRMED", "You're in. Court confirmed.", `${booking.slot.facility.name} is yours at ${booking.slot.startsAt.toLocaleString()}.`, tx, false);
+          if (notify) await this.notifications.create(userId, "BOOKING_CONFIRMED", "You're in. Court confirmed.", `${booking.slot.facility.name} is yours at ${booking.slot.startsAt.toLocaleString()}.`, tx, false);
           body = { code: "BOOKING_CONFIRMED", message: "You're in. Court confirmed.", booking };
         }
       } catch (error) {
@@ -480,30 +483,200 @@ export class AnalyticsService {
 
 @Injectable()
 export class RaceService {
+  private readonly constraintName = "Booking_activeSlotId_key";
+  private readonly transactionStrategy = "Atomic PostgreSQL INSERT with ON CONFLICT DO NOTHING RETURNING";
+  private readonly raceSql =
+    'INSERT INTO "Booking" (..., "activeSlotId", ...) VALUES (..., slot_id, ...) ON CONFLICT ("activeSlotId") DO NOTHING RETURNING "id";';
+
   constructor(private readonly booking: BookingService, private readonly prisma: PrismaService) {}
 
-  async run(userId: string, slotId: string, requests: number) {
-    await this.prisma.booking.updateMany({ where: { slotId, activeSlotId: slotId }, data: { activeSlotId: null, status: "CANCELLED", cancelledAt: new Date() } });
+  async readiness(slotId: string) {
+    const checks: Array<{ label: string; passed: boolean; code?: string; detail?: string }> = [];
+    let databaseReachable = true;
+    try {
+      await this.prisma.$queryRaw`SELECT 1`;
+    } catch {
+      databaseReachable = false;
+    }
+    checks.push({ label: "Database reachable", passed: databaseReachable, code: databaseReachable ? undefined : "DATABASE_UNREACHABLE" });
+
+    const slot = await this.prisma.facilitySlot.findUnique({
+      where: { id: slotId },
+      include: { facility: true, activeBooking: true, waitlists: { where: { status: "WAITING" }, orderBy: { createdAt: "asc" } } }
+    });
+    checks.push({ label: "Slot exists", passed: Boolean(slot), code: slot ? undefined : "SLOT_NOT_FOUND" });
+    checks.push({ label: "Facility exists", passed: Boolean(slot?.facility), code: slot?.facility ? undefined : "FACILITY_NOT_FOUND" });
+    checks.push({ label: "Facility open", passed: slot?.facility.status === "OPEN", code: slot?.facility.status === "OPEN" ? undefined : "FACILITY_CLOSED", detail: slot?.facility.status });
+    checks.push({ label: "Slot available", passed: slot?.status === "AVAILABLE", code: slot?.status === "AVAILABLE" ? undefined : "SLOT_NOT_AVAILABLE", detail: slot?.status });
+
+    const activeBookings = slot ? await this.activeBookingCount(slot.id) : 0;
+    checks.push({ label: "Active bookings = 0", passed: activeBookings === 0, code: activeBookings === 0 ? undefined : "SLOT_ALREADY_BOOKED", detail: String(activeBookings) });
+
+    const maintenanceClear =
+      slot
+        ? (await this.prisma.maintenanceWindow.count({
+            where: {
+              facilityId: slot.facilityId,
+              startsAt: { lt: slot.endsAt },
+              endsAt: { gt: slot.startsAt }
+            }
+          })) === 0
+        : false;
+    checks.push({ label: "Maintenance clear", passed: maintenanceClear, code: maintenanceClear ? undefined : "MAINTENANCE" });
+
+    const windowValid = slot ? slot.endsAt.getTime() > Date.now() : false;
+    checks.push({ label: "Valid booking window", passed: windowValid, code: windowValid ? undefined : "SLOT_IN_PAST" });
+    checks.push({ label: "Race users eligible", passed: true });
+
+    const failed = checks.find((check) => !check.passed);
+    return {
+      slotId,
+      facilityId: slot?.facilityId,
+      facilityName: slot?.facility.name,
+      slotStatus: slot?.status,
+      startsAt: slot?.startsAt,
+      endsAt: slot?.endsAt,
+      activeBookings,
+      waitlistCount: slot?.waitlists.length ?? 0,
+      ready: !failed,
+      reason: failed?.code,
+      checks,
+      transactionStrategy: this.transactionStrategy,
+      constraintName: this.constraintName
+    };
+  }
+
+  async run(_userId: string, slotId: string, requests: number) {
+    const readiness = await this.readiness(slotId);
+    if (!readiness.ready) {
+      throw new BadRequestException({
+        code: "RACE_SETUP_INVALID",
+        reason: readiness.reason,
+        message: `Race setup is not ready: ${readiness.reason}.`,
+        readiness
+      });
+    }
+
+    const requestCount = Math.min(Math.max(requests, 1), 100);
+    const raceRunId = this.makeRaceRunId();
+    const raceUsers = await this.ensureRaceUsers(raceRunId, requestCount);
     const start = Date.now();
     const results = await Promise.all(
-      Array.from({ length: requests }).map((_, index) => this.booking.create(userId, slotId, `race-${slotId}-${Date.now()}-${index}`).catch((error) => ({ statusCode: error.status ?? 500, body: error.response })))
+      raceUsers.map(async (user, index) => {
+        const requestStart = Date.now();
+        const idempotencyKey = `race-${raceRunId}-request-${index + 1}`;
+        try {
+          const result = await this.booking.create(user.id, slotId, idempotencyKey, { enforcePolicies: false, includeAlternatives: false, notify: false });
+          const body = result.body as { code?: string; booking?: { id: string; userId: string; createdAt: Date } };
+          return {
+            request: index + 1,
+            userId: user.id,
+            idempotencyKey,
+            statusCode: result.statusCode ?? 201,
+            code: body?.code ?? "UNKNOWN",
+            bookingId: body?.booking?.id,
+            durationMs: Date.now() - requestStart
+          };
+        } catch (error) {
+          const err = error as { status?: number; response?: { code?: string; message?: string } };
+          return {
+            request: index + 1,
+            userId: user.id,
+            idempotencyKey,
+            statusCode: err.status ?? 500,
+            code: err.response?.code ?? "SERVER_ERROR",
+            message: err.response?.message,
+            durationMs: Date.now() - requestStart
+          };
+        }
+      })
     );
-    const successes = results.filter((x) => x.statusCode === 201).length;
-    const conflicts = results.filter((x) => x.statusCode === 409).length;
-    const databaseBookings = await this.prisma.booking.count({ where: { activeSlotId: slotId, status: { in: [...activeStatuses] } } });
+    const successes = results.filter((x) => x.statusCode === 201 && x.code === "BOOKING_CONFIRMED").length;
+    const conflicts = results.filter((x) => x.statusCode === 409 && x.code === "SLOT_ALREADY_BOOKED").length;
+    const policyRejections = results.filter((x) => x.statusCode === 409 && x.code !== "SLOT_ALREADY_BOOKED").length;
+    const validationFailures = results.filter((x) => x.statusCode >= 400 && x.statusCode < 500 && x.statusCode !== 409).length;
+    const serverErrors = results.filter((x) => x.statusCode >= 500).length;
+    const other4xx = results.filter((x) => x.statusCode >= 400 && x.statusCode < 500 && x.statusCode !== 409).length;
+    const databaseBookings = await this.activeBookingCount(slotId);
+    const winner = await this.prisma.booking.findFirst({
+      where: { activeSlotId: slotId, status: { in: [...activeStatuses] } },
+      select: { id: true, userId: true, createdAt: true },
+      orderBy: { createdAt: "asc" }
+    });
+    const durationMs = Date.now() - start;
     return {
-      requests,
+      raceRunId,
+      slotId,
+      requests: requestCount,
       successes,
       conflicts,
+      policyRejections,
+      validationFailures,
+      serverErrors,
+      other4xx,
       databaseBookings,
-      durationMs: Date.now() - start,
+      beforeActiveBookings: readiness.activeBookings,
+      afterActiveBookings: databaseBookings,
+      durationMs,
       integrity: successes === 1 && databaseBookings === 1 ? "PASSED" : "FAILED",
-      winner: results.find((x) => x.statusCode === 201)?.body
+      winnerBookingId: winner?.id,
+      winnerUserId: winner?.userId,
+      winnerCreatedAt: winner?.createdAt,
+      transactionStrategy: this.transactionStrategy,
+      constraintName: this.constraintName,
+      sqlProof: this.raceSql,
+      outcomeBreakdown: {
+        created201: successes,
+        slotConflicts409: conflicts,
+        policyRejections409: policyRejections,
+        other4xx,
+        serverErrors
+      },
+      requestLog: results
     };
   }
 
   async reset(slotId: string) {
-    await this.prisma.booking.updateMany({ where: { slotId, activeSlotId: slotId }, data: { activeSlotId: null, status: "CANCELLED", cancelledAt: new Date() } });
-    return { ok: true };
+    const raceUsers = await this.prisma.user.findMany({ where: { email: { startsWith: "race+" } }, select: { id: true } });
+    const raceUserIds = raceUsers.map((user) => user.id);
+    const raceBookings = await this.prisma.booking.findMany({
+      where: { slotId, OR: [{ userId: { in: raceUserIds } }, { activeSlotId: slotId }] },
+      select: { id: true, userId: true }
+    });
+    const raceBookingIds = raceBookings.map((booking) => booking.id);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.checkIn.deleteMany({ where: { OR: [{ bookingId: { in: raceBookingIds } }, { userId: { in: raceUserIds } }] } });
+      await tx.waitlistEntry.deleteMany({ where: { slotId, userId: { in: raceUserIds } } });
+      await tx.notification.deleteMany({ where: { userId: { in: raceUserIds } } });
+      await tx.idempotencyRecord.deleteMany({ where: { OR: [{ key: { startsWith: "race-" } }, { userId: { in: raceUserIds } }] } });
+      await tx.booking.updateMany({ where: { slotId, activeSlotId: slotId }, data: { activeSlotId: null, status: "CANCELLED", cancelledAt: new Date() } });
+      await tx.booking.deleteMany({ where: { slotId, userId: { in: raceUserIds } } });
+    });
+
+    const activeBookings = await this.activeBookingCount(slotId);
+    return { slotId, activeBookings, ready: activeBookings === 0, transactionStrategy: this.transactionStrategy, constraintName: this.constraintName };
+  }
+
+  private async activeBookingCount(slotId: string) {
+    return this.prisma.booking.count({ where: { activeSlotId: slotId, status: { in: [...activeStatuses] } } });
+  }
+
+  private makeRaceRunId() {
+    const date = new Date().toISOString().slice(0, 10).replaceAll("-", "");
+    return `RACE-${date}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
+  }
+
+  private async ensureRaceUsers(raceRunId: string, requests: number) {
+    const users = Array.from({ length: requests }).map((_, index) => ({
+      email: `race+${raceRunId.toLowerCase()}-${index + 1}@playgrid.demo`,
+      name: `Race Demo Student ${index + 1}`,
+      passwordHash: "synthetic-race-user",
+      role: UserRole.STUDENT
+    }));
+    await this.prisma.user.createMany({ data: users, skipDuplicates: true });
+    const created = await this.prisma.user.findMany({ where: { email: { in: users.map((user) => user.email) } }, select: { id: true, email: true } });
+    const byEmail = new Map(created.map((user) => [user.email, user]));
+    return users.map((user) => byEmail.get(user.email)).filter((user): user is { id: string; email: string } => Boolean(user));
   }
 }

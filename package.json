@@ -6,7 +6,7 @@
   "scripts": {
     "infra:up": "docker compose -f docker-compose.infra.yml up -d postgres redis",
     "infra:down": "docker compose -f docker-compose.infra.yml down",
-    "dev": "pnpm --parallel --filter @playgrid/api --filter @playgrid/web dev",
+    "dev": "node scripts/cleanup-dev-ports.mjs && pnpm --parallel --filter @playgrid/api --filter @playgrid/web dev",
     "dev:web": "pnpm --filter @playgrid/web dev",
     "dev:api": "pnpm --filter @playgrid/api dev",
     "build": "pnpm -r build",

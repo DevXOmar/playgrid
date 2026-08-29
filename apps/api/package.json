@@ -8,7 +8,7 @@
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "test": "jest --runInBand",
     "test:integration": "jest --config jest.integration.json --runInBand",
-    "test:race": "jest --config jest.integration.json --runInBand test/booking.e2e-spec.ts -t \"100 concurrent\"",
+    "test:race": "jest --config jest.integration.json --runInBand test/race-demo.e2e-spec.ts",
     "prisma:migrate": "XDG_CACHE_HOME=../../.cache prisma migrate deploy",
     "prisma:dev-migrate": "XDG_CACHE_HOME=../../.cache prisma migrate dev",
     "prisma:deploy": "XDG_CACHE_HOME=../../.cache prisma migrate deploy",

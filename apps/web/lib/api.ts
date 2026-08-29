@@ -32,7 +32,8 @@ export async function login(email: string, password: string) {
   return data;
 }
 
-export function logout() {
+export async function logout() {
+  await fetch(`${apiBaseUrl}/auth/logout`, { method: "POST", credentials: "include" }).catch(() => undefined);
   localStorage.removeItem("playgrid_token");
 }
 

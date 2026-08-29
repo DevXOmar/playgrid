@@ -25,7 +25,7 @@ export default function Dashboard() {
       <section className="grid min-h-[72vh] items-center gap-8 lg:grid-cols-[1.1fr_0.9fr]">
         <div>
           <motion.p initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="mb-4 inline-flex rounded-full border border-playorange/40 bg-playorange/10 px-4 py-2 text-sm font-semibold text-playorange">
-            IIT Guwahati PLAYHACK prototype
+            Live campus booking engine
           </motion.p>
           <motion.h1 initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="max-w-4xl text-5xl font-black leading-[0.95] sm:text-7xl lg:text-8xl">
             ONE COURT.

@@ -171,6 +171,12 @@ export class AppController {
   }
 
   @UseGuards(AuthGuard)
+  @Get("demo/race/readiness")
+  raceReadiness(@Query("slotId") slotId: string) {
+    return this.race.readiness(slotId);
+  }
+
+  @UseGuards(AuthGuard)
   @Post("demo/race")
   runRace(@Req() req: { user: RequestUser }, @Body() dto: RaceDto) {
     return this.race.run(req.user.sub, dto.slotId, dto.requests);

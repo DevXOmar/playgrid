@@ -2,7 +2,7 @@
 
 **One Court. 100 Requests. One Winner.**
 
-PLAYGRID is a hackathon prototype for contention-safe campus sports facility booking. It is built for the IIT Guwahati PLAYHACK Software Development Track and focuses on the hard part: when 100 students request the same facility slot at once, exactly one booking succeeds.
+PLAYGRID is a prototype for contention-safe campus sports facility booking. It focuses on the hard part: when 100 students request the same facility slot at once, exactly one booking succeeds.
 
 ## Problem
 
