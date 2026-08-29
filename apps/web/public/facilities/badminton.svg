@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800" role="img" aria-label="Badminton court">
+  <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#1A1429"/><stop offset="1" stop-color="#08070D"/></linearGradient></defs>
+  <rect width="1200" height="800" fill="url(#g)"/>
+  <rect x="160" y="110" width="880" height="580" rx="28" fill="#102d24" stroke="#7C5CFF" stroke-width="10"/>
+  <path d="M600 110v580M160 400h880M260 110v580M940 110v580M160 250h880M160 550h880" stroke="#F7F7FA" stroke-opacity=".82" stroke-width="6"/>
+  <path d="M600 110v580" stroke="#FF7A21" stroke-width="14" stroke-dasharray="18 18"/>
+  <circle cx="275" cy="286" r="46" fill="#FF7A21"/>
+  <path d="M300 256l104-72 22 32-104 72z" fill="#F7F7FA"/><path d="M420 173l58-38" stroke="#9D7CFF" stroke-width="18" stroke-linecap="round"/>
+</svg>

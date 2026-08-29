@@ -3,15 +3,16 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "nest start --watch",
+    "dev": "HOST=127.0.0.1 nest start --watch",
     "build": "nest build",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "test": "jest --runInBand",
     "test:integration": "jest --config jest.integration.json --runInBand",
     "test:race": "jest --config jest.integration.json --runInBand test/booking.e2e-spec.ts -t \"100 concurrent\"",
-    "prisma:migrate": "prisma migrate dev --name init",
-    "prisma:deploy": "prisma migrate deploy",
-    "prisma:generate": "prisma generate",
+    "prisma:migrate": "XDG_CACHE_HOME=../../.cache prisma migrate deploy",
+    "prisma:dev-migrate": "XDG_CACHE_HOME=../../.cache prisma migrate dev",
+    "prisma:deploy": "XDG_CACHE_HOME=../../.cache prisma migrate deploy",
+    "prisma:generate": "XDG_CACHE_HOME=../../.cache prisma generate",
     "prisma:seed": "tsx prisma/seed.ts"
   },
   "dependencies": {

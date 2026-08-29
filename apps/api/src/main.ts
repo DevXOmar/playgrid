@@ -1,7 +1,7 @@
 import "reflect-metadata";
 import { ValidationPipe } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
-import cookieParser from "cookie-parser";
+import cookieParser = require("cookie-parser");
 import { AppModule } from "./app.module";
 
 async function bootstrap() {
@@ -12,7 +12,7 @@ async function bootstrap() {
   });
   app.use(cookieParser());
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-  await app.listen(process.env.PORT ? Number(process.env.PORT) : 4000);
+  await app.listen(process.env.PORT ? Number(process.env.PORT) : 4000, process.env.HOST ?? "127.0.0.1");
 }
 
 void bootstrap();

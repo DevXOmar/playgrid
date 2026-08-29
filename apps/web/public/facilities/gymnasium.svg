@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800" role="img" aria-label="Gymnasium">
+  <rect width="1200" height="800" fill="#11101A"/>
+  <rect x="120" y="120" width="960" height="560" rx="28" fill="#1A1429" stroke="#7C5CFF" stroke-width="10"/>
+  <path d="M240 520h720M300 280h600" stroke="#F7F7FA" stroke-opacity=".16" stroke-width="24" stroke-linecap="round"/>
+  <path d="M350 395h500" stroke="#FF7A21" stroke-width="34" stroke-linecap="round"/>
+  <rect x="250" y="340" width="90" height="110" rx="14" fill="#F7F7FA"/><rect x="860" y="340" width="90" height="110" rx="14" fill="#F7F7FA"/>
+  <rect x="170" y="315" width="70" height="160" rx="12" fill="#9D7CFF"/><rect x="960" y="315" width="70" height="160" rx="12" fill="#9D7CFF"/>
+  <circle cx="600" cy="228" r="58" fill="#FF7A21"/><path d="M560 228h80M600 188v80" stroke="#08070D" stroke-width="12" stroke-linecap="round"/>
+</svg>

@@ -1,10 +1,12 @@
 import { INestApplication } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
-import request from "supertest";
+import * as bcrypt from "bcryptjs";
+import request = require("supertest");
 import { AppModule } from "../src/app.module";
 import { PrismaService } from "../src/services";
 
 describe("booking invariants", () => {
+  jest.setTimeout(30_000);
   let app: INestApplication;
   let prisma: PrismaService;
   let token: string;
@@ -15,7 +17,16 @@ describe("booking invariants", () => {
     app = moduleRef.createNestApplication();
     await app.init();
     prisma = app.get(PrismaService);
-    const login = await request(app.getHttpServer()).post("/auth/login").send({ email: "student@playgrid.demo", password: "PlayGrid123!" });
+    const email = `race-test-${Date.now()}@playgrid.demo`;
+    await prisma.user.create({
+      data: {
+        email,
+        name: "Race Test Student",
+        passwordHash: await bcrypt.hash("PlayGrid123!", 12),
+        role: "STUDENT"
+      }
+    });
+    const login = await request(app.getHttpServer()).post("/auth/login").send({ email, password: "PlayGrid123!" });
     token = login.body.token;
     const facility = await prisma.facility.findFirstOrThrow({ where: { name: "Badminton Court 1" } });
     const slot = await prisma.facilitySlot.findFirstOrThrow({ where: { facilityId: facility.id, startsAt: { gte: new Date() }, status: "AVAILABLE", activeBooking: null }, orderBy: { startsAt: "asc" } });
@@ -28,15 +39,16 @@ describe("booking invariants", () => {
   });
 
   it("creates one successful booking and rejects a duplicate", async () => {
-    const first = await request(app.getHttpServer()).post("/bookings").set("Authorization", `Bearer ${token}`).set("Idempotency-Key", "it-success").send({ slotId });
+    const runId = Date.now();
+    const first = await request(app.getHttpServer()).post("/bookings").set("Authorization", `Bearer ${token}`).set("Idempotency-Key", `it-success-${runId}`).send({ slotId });
     expect(first.status).toBe(201);
-    const second = await request(app.getHttpServer()).post("/bookings").set("Authorization", `Bearer ${token}`).set("Idempotency-Key", "it-conflict").send({ slotId });
+    const second = await request(app.getHttpServer()).post("/bookings").set("Authorization", `Bearer ${token}`).set("Idempotency-Key", `it-conflict-${runId}`).send({ slotId });
     expect(second.status).toBe(409);
     await expect(prisma.booking.count({ where: { activeSlotId: slotId } })).resolves.toBe(1);
   });
 
   it("replays idempotent requests without creating another booking", async () => {
-    const key = "it-idempotent";
+    const key = `it-idempotent-${Date.now()}`;
     const a = await request(app.getHttpServer()).post("/bookings").set("Authorization", `Bearer ${token}`).set("Idempotency-Key", key).send({ slotId });
     const b = await request(app.getHttpServer()).post("/bookings").set("Authorization", `Bearer ${token}`).set("Idempotency-Key", key).send({ slotId });
     expect(b.status).toBe(a.status);

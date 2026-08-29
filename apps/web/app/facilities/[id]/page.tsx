@@ -1,14 +1,13 @@
 "use client";
 
 import { api, formatSlot, todayIso } from "@/lib/api";
-import { apiBaseUrl } from "@playgrid/config";
+import { getSocket } from "@/lib/socket";
 import { Button, Card, Input } from "@playgrid/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Calendar, CheckCircle2, Clock, Loader2, Plus, ShieldCheck, Sparkles, Users } from "lucide-react";
 import Image from "next/image";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { io } from "socket.io-client";
 
 type Facility = { id: string; name: string; sport: string; location: string; description: string; imageUrl: string; amenities: string[]; openHour: number; closeHour: number; status: string; policies: { maxActiveBookings: number; maxSportBookingsPerWeek: number; cancellationCutoffMinutes: number }[] };
 type Slot = { id: string; startsAt: string; endsAt: string; status: string; state: string; waitlistCount: number };
@@ -22,13 +21,14 @@ export default function FacilityDetailPage() {
   const [selected, setSelected] = useState<Slot | null>(null);
   const [conflict, setConflict] = useState<{ message: string; alternatives?: Alternative[] } | null>(null);
   const facility = useQuery({ queryKey: ["facility", id], queryFn: () => api<Facility>(`/facilities/${id}`) });
-  const slots = useQuery({ queryKey: ["slots", id, date], queryFn: () => api<Slot[]>(`/facilities/${id}/slots?date=${date}`) });
+  const slots = useQuery({ queryKey: ["slots", id, date], queryFn: () => api<Slot[]>(`/facilities/${id}/slots?date=${date}`), staleTime: 3_000 });
 
   useEffect(() => {
-    const socket = io(apiBaseUrl);
-    socket.on("slot:update", () => qc.invalidateQueries({ queryKey: ["slots", id, date] }));
+    const socket = getSocket();
+    const onSlotUpdate = () => qc.invalidateQueries({ queryKey: ["slots", id, date] });
+    socket.on("slot:update", onSlotUpdate);
     return () => {
-      socket.disconnect();
+      socket.off("slot:update", onSlotUpdate);
     };
   }, [qc, id, date]);
 
@@ -69,7 +69,7 @@ export default function FacilityDetailPage() {
       {facility.data ? (
         <section className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
           <div className="relative min-h-80 overflow-hidden rounded-lg border border-white/10">
-            <Image src={facility.data.imageUrl} alt="" fill className="object-cover" priority />
+            <Image src={facility.data.imageUrl} alt="" fill sizes="(min-width: 1024px) 45vw, 100vw" className="object-cover" priority />
           </div>
           <div className="flex flex-col justify-center">
             <p className="text-sm font-bold text-playorange">{facility.data.sport}</p>

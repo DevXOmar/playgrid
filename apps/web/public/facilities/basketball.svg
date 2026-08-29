@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800" role="img" aria-label="Basketball court">
+  <rect width="1200" height="800" fill="#100b18"/>
+  <rect x="130" y="95" width="940" height="610" rx="24" fill="#6b351f" stroke="#7C5CFF" stroke-width="10"/>
+  <path d="M600 95v610M130 400h940" stroke="#F7F7FA" stroke-width="7"/>
+  <circle cx="600" cy="400" r="92" fill="none" stroke="#F7F7FA" stroke-width="7"/>
+  <path d="M130 255h150v290H130M1070 255H920v290h150" fill="none" stroke="#F7F7FA" stroke-width="7"/>
+  <circle cx="286" cy="400" r="72" fill="none" stroke="#F7F7FA" stroke-width="7"/><circle cx="914" cy="400" r="72" fill="none" stroke="#F7F7FA" stroke-width="7"/>
+  <circle cx="792" cy="216" r="58" fill="#FF7A21"/><path d="M734 216h116M792 158v116M752 176c38 31 54 77 40 118M832 176c-38 31-54 77-40 118" stroke="#08070D" stroke-width="8" fill="none"/>
+</svg>

@@ -44,7 +44,7 @@ export default function FacilitiesPage() {
         {facilities.data?.map((facility) => (
           <Link key={facility.id} href={`/facilities/${facility.id}`} className="group overflow-hidden rounded-lg border border-white/10 bg-white/[0.06] transition hover:border-purple/60">
             <div className="relative h-56">
-              <Image src={facility.imageUrl} alt="" fill className="object-cover transition duration-500 group-hover:scale-105" />
+              <Image src={facility.imageUrl} alt="" fill sizes="(min-width: 1280px) 33vw, (min-width: 768px) 50vw, 100vw" className="object-cover transition duration-500 group-hover:scale-105" />
               <span className={`absolute left-4 top-4 rounded-full px-3 py-1 text-xs font-black ${facility.currentAvailability ? "bg-green-400 text-ink" : "bg-white/85 text-ink"}`}>
                 {facility.currentAvailability ? "Open slots" : facility.status}
               </span>

@@ -1,6 +1,6 @@
 import { PrismaClient, SlotStatus } from "@prisma/client";
-import bcrypt from "bcryptjs";
-import crypto from "crypto";
+import * as bcrypt from "bcryptjs";
+import * as crypto from "crypto";
 
 const prisma = new PrismaClient();
 
@@ -10,7 +10,7 @@ const facilities = [
     sport: "Badminton",
     location: "Indoor Sports Complex",
     description: "Fast indoor court with evening peak demand.",
-    imageUrl: "https://images.unsplash.com/photo-1626224583764-f87db24ac4ea?auto=format&fit=crop&w=1200&q=80",
+    imageUrl: "/facilities/badminton.svg",
     indoor: true,
     capacity: 4,
     amenities: ["Wood court", "LED lighting", "Racquet rental"]
@@ -20,7 +20,7 @@ const facilities = [
     sport: "Badminton",
     location: "Indoor Sports Complex",
     description: "Practice court beside the main badminton hall.",
-    imageUrl: "https://images.unsplash.com/photo-1613918431703-aa50889e3be4?auto=format&fit=crop&w=1200&q=80",
+    imageUrl: "/facilities/badminton.svg",
     indoor: true,
     capacity: 4,
     amenities: ["Indoor", "Changing room", "Scoreboard"]
@@ -30,7 +30,7 @@ const facilities = [
     sport: "Tennis",
     location: "Riverside Courts",
     description: "Outdoor court for singles and doubles.",
-    imageUrl: "https://images.unsplash.com/photo-1595435934249-5df7ed86e1c0?auto=format&fit=crop&w=1200&q=80",
+    imageUrl: "/facilities/tennis.svg",
     indoor: false,
     capacity: 4,
     amenities: ["Floodlights", "Practice wall", "Seating"]
@@ -40,7 +40,7 @@ const facilities = [
     sport: "Basketball",
     location: "Student Activity Zone",
     description: "Full court with late-evening pickup games.",
-    imageUrl: "https://images.unsplash.com/photo-1546519638-68e109498ffc?auto=format&fit=crop&w=1200&q=80",
+    imageUrl: "/facilities/basketball.svg",
     indoor: false,
     capacity: 10,
     amenities: ["Full court", "Floodlights", "Benches"]
@@ -50,7 +50,7 @@ const facilities = [
     sport: "Football",
     location: "North Campus Ground",
     description: "Large turf ground for team bookings.",
-    imageUrl: "https://images.unsplash.com/photo-1553778263-73a83bab9b0c?auto=format&fit=crop&w=1200&q=80",
+    imageUrl: "/facilities/football.svg",
     indoor: false,
     capacity: 22,
     amenities: ["Full pitch", "Team benches", "Water point"]
@@ -60,7 +60,7 @@ const facilities = [
     sport: "Gymnasium",
     location: "Wellness Block",
     description: "Strength and conditioning zone with limited hourly capacity.",
-    imageUrl: "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?auto=format&fit=crop&w=1200&q=80",
+    imageUrl: "/facilities/gymnasium.svg",
     indoor: true,
     capacity: 30,
     amenities: ["Weights", "Cardio", "Lockers"]
@@ -70,7 +70,7 @@ const facilities = [
     sport: "Cricket",
     location: "South Campus Field",
     description: "Outdoor pitch for nets and match slots.",
-    imageUrl: "https://images.unsplash.com/photo-1531415074968-036ba1b575da?auto=format&fit=crop&w=1200&q=80",
+    imageUrl: "/facilities/cricket.svg",
     indoor: false,
     capacity: 22,
     amenities: ["Practice nets", "Pitch", "Score hut"]

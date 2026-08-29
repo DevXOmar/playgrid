@@ -7,6 +7,7 @@ services:
       POSTGRES_PASSWORD: playgrid
       POSTGRES_DB: playgrid
     ports:
+      # 5432 is often occupied by local macOS Postgres. Use a deterministic app port.
       - "15432:5432"
     volumes:
       - playgrid-postgres-data-v2:/var/lib/postgresql/data

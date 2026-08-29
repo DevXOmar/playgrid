@@ -124,7 +124,7 @@ export default function Dashboard() {
           {facilities.data?.slice(0, 3).map((facility) => (
             <Link key={facility.id} href={`/facilities/${facility.id}`} className="group overflow-hidden rounded-lg border border-white/10 bg-white/[0.06]">
               <div className="relative h-48">
-                <Image src={facility.imageUrl} alt="" fill className="object-cover transition duration-500 group-hover:scale-105" />
+                <Image src={facility.imageUrl} alt="" fill sizes="(min-width: 768px) 33vw, 100vw" className="object-cover transition duration-500 group-hover:scale-105" />
               </div>
               <div className="p-5">
                 <p className="text-sm font-bold text-playorange">{facility.sport}</p>

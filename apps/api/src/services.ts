@@ -1,9 +1,9 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { Prisma, PrismaClient, UserRole } from "@prisma/client";
-import bcrypt from "bcryptjs";
+import * as bcrypt from "bcryptjs";
 import { Queue } from "bullmq";
-import crypto from "crypto";
+import * as crypto from "crypto";
 import { BookingGateway } from "./gateway";
 
 const activeStatuses = ["CONFIRMED", "CHECKED_IN"] as const;
@@ -172,12 +172,12 @@ export class PoliciesService {
 export class AlternativesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async forSlot(slotId: string) {
-    const requested = await this.prisma.facilitySlot.findUnique({ where: { id: slotId }, include: { facility: true } });
+  async forSlot(slotId: string, tx: Tx = this.prisma) {
+    const requested = await tx.facilitySlot.findUnique({ where: { id: slotId }, include: { facility: true } });
     if (!requested) return [];
     const hourBefore = new Date(requested.startsAt.getTime() - 60 * 60_000);
     const dayAfter = new Date(requested.startsAt.getTime() + 24 * 60 * 60_000);
-    const candidates = await this.prisma.facilitySlot.findMany({
+    const candidates = await tx.facilitySlot.findMany({
       where: {
         id: { not: slotId },
         status: "AVAILABLE",
@@ -211,9 +211,9 @@ export class AlternativesService {
 export class NotificationsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(userId: string, type: Prisma.NotificationCreateInput["type"], title: string, body: string, tx: Tx = this.prisma) {
+  async create(userId: string, type: Prisma.NotificationCreateInput["type"], title: string, body: string, tx: Tx = this.prisma, enqueue = true) {
     const notification = await tx.notification.create({ data: { userId, type, title, body } });
-    await this.enqueueSafely("notification.created", { userId, notificationId: notification.id });
+    if (enqueue) await this.enqueueSafely("notification.created", { userId, notificationId: notification.id });
     return notification;
   }
 
@@ -287,7 +287,7 @@ export class BookingService {
           body = {
             code: "SLOT_ALREADY_BOOKED",
             message: "Someone just secured this slot.",
-            alternatives: await this.alternatives.forSlot(slotId)
+            alternatives: await this.alternatives.forSlot(slotId, tx)
           };
         } else {
           const booking = await tx.booking.findUniqueOrThrow({
@@ -295,7 +295,7 @@ export class BookingService {
             include: { slot: { include: { facility: true } } }
           });
           await tx.waitlistEntry.updateMany({ where: { userId, slotId, status: "WAITING" }, data: { status: "CANCELLED" } });
-          await this.notifications.create(userId, "BOOKING_CONFIRMED", "You're in. Court confirmed.", `${booking.slot.facility.name} is yours at ${booking.slot.startsAt.toLocaleString()}.`, tx);
+          await this.notifications.create(userId, "BOOKING_CONFIRMED", "You're in. Court confirmed.", `${booking.slot.facility.name} is yours at ${booking.slot.startsAt.toLocaleString()}.`, tx, false);
           body = { code: "BOOKING_CONFIRMED", message: "You're in. Court confirmed.", booking };
         }
       } catch (error) {
@@ -308,7 +308,7 @@ export class BookingService {
       }
       await tx.idempotencyRecord.update({ where: { key_userId: { key: idempotencyKey, userId } }, data: { status: "COMPLETED", responseCode: statusCode, responseBody: body as Prisma.InputJsonValue } });
       return { replayed: false, statusCode, body };
-    }).then((result) => {
+    }, { maxWait: 15_000, timeout: 20_000 }).then((result) => {
       this.gateway.slotChanged(slotId, result.body as Record<string, unknown>);
       return result;
     });
@@ -326,7 +326,7 @@ export class BookingService {
     const result = await this.prisma.$transaction(async (tx) => {
       const booking = await this.policies.canCancel(bookingId, userId, tx);
       await tx.booking.update({ where: { id: booking.id }, data: { status: "CANCELLED", activeSlotId: null, cancelledAt: new Date() } });
-      await this.notifications.create(userId, "BOOKING_CANCELLED", "Booking cancelled.", "Your court has been released.", tx);
+      await this.notifications.create(userId, "BOOKING_CANCELLED", "Booking cancelled.", "Your court has been released.", tx, false);
       const promoted = await this.promoteNext(booking.slotId, tx);
       return { booking, promoted };
     });
@@ -353,7 +353,7 @@ export class BookingService {
     `;
     if (rows.length !== 1) return null;
     await tx.waitlistEntry.update({ where: { id: next[0].id }, data: { status: "PROMOTED" } });
-    await this.notifications.create(next[0].userId, "WAITLIST_PROMOTED", "You're in. We moved you up automatically.", "A cancellation opened your requested slot.", tx);
+    await this.notifications.create(next[0].userId, "WAITLIST_PROMOTED", "You're in. We moved you up automatically.", "A cancellation opened your requested slot.", tx, false);
     return tx.booking.findUnique({ where: { id: rows[0].id }, include: { user: true, slot: { include: { facility: true } } } });
   }
 

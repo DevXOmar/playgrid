@@ -66,18 +66,51 @@ Invariant 4: Waitlist promotion cannot create multiple active bookings.
 - Testing: Jest, Supertest, Playwright, k6 script
 - Infrastructure: Docker Compose
 
-## Setup
+## Local Development - Recommended
+
+On macOS, run only infrastructure in Docker. Next.js and NestJS should run natively on the host filesystem. Docker Desktop bind-mounted filesystem performance can make Next.js development compilation dramatically slower, especially on route-heavy apps.
 
 ```bash
-docker compose up -d
+pnpm infra:up
 pnpm install
-pnpm --filter @playgrid/api prisma:migrate
+pnpm db:migrate
 pnpm db:seed
 pnpm dev
 ```
 
-Web: http://localhost:3000  
+Web: http://localhost:3000
+
 API: http://localhost:4000/health
+
+PostgreSQL for this Mac is exposed on host port `15432` because local macOS Postgres is already using `5432`. The database still runs inside Docker as `playgrid-postgres`.
+
+Redis: `localhost:6379`
+
+Next.js dev uses Turbopack:
+
+```bash
+pnpm dev:web
+pnpm dev:api
+```
+
+`pnpm dev` runs both native dev servers concurrently.
+
+## Full Docker - Deployment / Reproducibility
+
+The checked-in Compose files intentionally run infrastructure only for local development. If production Dockerfiles are added later, keep them separate from the macOS development path so app source and `.next` are not bind-mounted through Docker Desktop.
+
+Infrastructure only:
+
+```bash
+docker compose -f docker-compose.infra.yml up -d postgres redis
+docker compose -f docker-compose.infra.yml down
+```
+
+If Prisma reports a permission error while touching its engine cache, the project scripts already force Prisma to use the repo-local `.cache` directory. Run the command through pnpm, not a global Prisma binary:
+
+```bash
+pnpm db:migrate
+```
 
 ## Demo Credentials
 
